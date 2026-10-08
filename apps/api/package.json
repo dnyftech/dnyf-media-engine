@@ -1,0 +1,22 @@
+{
+  "name": "@dnyf/media-api",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc -p tsconfig.json",
+    "lint": "tsc --noEmit -p tsconfig.json",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@dnyf/media-engine": "workspace:*",
+    "@dnyf/media-shared": "workspace:*",
+    "@hono/node-server": "^1.19.2",
+    "hono": "^4.9.7"
+  },
+  "devDependencies": {
+    "@types/node": "^24.8.1",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2"
+  }
+}

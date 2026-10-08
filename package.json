@@ -1,0 +1,22 @@
+{
+  "name": "@dnyf/media-workspace",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@11.25.0",
+  "scripts": {
+    "build": "pnpm -r build",
+    "dev:api": "pnpm --filter @dnyf/media-api dev",
+    "dev:web": "pnpm --filter @dnyf/media-web dev",
+    "dev": "pnpm --parallel dev:api dev:web",
+    "test": "pnpm test:engine && pnpm test:ffmpeg && pnpm test:api",
+    "verify": "pnpm build && pnpm test",
+    "lint": "pnpm -r lint",
+    "clean": "pnpm -r clean",
+    "cleanup:storage": "node scripts/cleanup-storage.mjs",
+    "cleanup:storage:apply": "DNYF_MEDIA_CLEANUP_DRY_RUN=0 node scripts/cleanup-storage.mjs",
+    "test:engine": "pnpm --filter @dnyf/media-engine build && node --test tests/engine/engine-queue.test.mjs",
+    "test:ffmpeg": "pnpm --filter @dnyf/media-ffmpeg build && node --test tests/ffmpeg/cancellation.test.mjs",
+    "test:security": "node --test tests/integration/api-security.test.mjs",
+    "test:api": "node scripts/run-api-tests.mjs"
+  }
+}

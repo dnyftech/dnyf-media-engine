@@ -1,0 +1,52 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+.pnpm-debug.log
+
+# Build output
+dist/
+build/
+.next/
+.turbo/
+coverage/
+
+# Runtime media data
+data/uploads/*
+data/outputs/*
+data/jobs/*
+data/test/*.mp4
+data/test/*.m4a
+data/test/*.mp3
+data/test/*.wav
+data/test/*.flac
+data/test/*.ogg
+
+# Keep runtime directories
+!data/uploads/.gitkeep
+!data/outputs/.gitkeep
+!data/jobs/.gitkeep
+!data/test/.gitkeep
+
+# Logs
+*.log
+logs/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Local hardening backups
+.hardening-backup/
+
+# Generated test downloads
+data/test/downloads/
+
+# Large local artifact; never commit
+/core

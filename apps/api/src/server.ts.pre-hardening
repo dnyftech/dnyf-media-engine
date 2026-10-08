@@ -1,0 +1,311 @@
+import { serve } from "@hono/node-server";
+import { Hono } from "hono";
+import { cors } from "hono/cors";
+
+import {
+  mkdir,
+  writeFile
+} from "node:fs/promises";
+
+import {
+  createReadStream
+} from "node:fs";
+
+import {
+  dirname,
+  join
+} from "node:path";
+
+import {
+  fileURLToPath
+} from "node:url";
+
+import {
+  MediaEngine
+} from "@dnyf/media-engine";
+
+import {
+  AUDIO_FORMATS,
+  type AudioFormat
+} from "@dnyf/media-shared";
+
+const host =
+  process.env.DNYF_MEDIA_HOST ??
+  "127.0.0.1";
+
+const port =
+  Number(
+    process.env.DNYF_MEDIA_PORT ??
+    8787
+  );
+
+const projectRoot =
+  join(
+    dirname(
+      fileURLToPath(import.meta.url)
+    ),
+    "../../.."
+  );
+
+const dataDir =
+  process.env.DNYF_MEDIA_DATA_DIR ??
+  join(
+    projectRoot,
+    "data"
+  );
+
+const maxBytes =
+  Number(
+    process.env.DNYF_MEDIA_MAX_FILE_MB ??
+    2048
+  ) *
+  1024 *
+  1024;
+
+const engine =
+  new MediaEngine({
+    dataDir
+  });
+
+await engine.init();
+
+const app =
+  new Hono();
+
+app.use(
+  "*",
+  cors()
+);
+
+app.get(
+  "/health",
+  c =>
+    c.json({
+      ok: true,
+      service: "dnyf-media-api",
+      version: "0.1.0"
+    })
+);
+
+app.post(
+  "/v1/media/extract",
+  async c => {
+    const body =
+      await c.req.parseBody();
+
+    const file =
+      body.file;
+
+    if (!(file instanceof File)) {
+      return c.json(
+        {
+          error:
+            "file is required"
+        },
+        400
+      );
+    }
+
+    if (
+      file.size >
+      maxBytes
+    ) {
+      return c.json(
+        {
+          error:
+            "file exceeds configured size limit"
+        },
+        413
+      );
+    }
+
+    const format =
+      String(
+        body.format ??
+        "mp3"
+      ) as AudioFormat;
+
+    if (
+      !AUDIO_FORMATS.includes(
+        format
+      )
+    ) {
+      return c.json(
+        {
+          error:
+            `unsupported format: ${format}`
+        },
+        400
+      );
+    }
+
+    const uploads =
+      join(
+        dataDir,
+        "uploads"
+      );
+
+    await mkdir(
+      uploads,
+      {
+        recursive: true
+      }
+    );
+
+    const id =
+      crypto.randomUUID();
+
+    const safeOriginal =
+      file.name.replace(
+        /[^a-zA-Z0-9._-]/g,
+        "_"
+      );
+
+    const inputPath =
+      join(
+        uploads,
+        `${id}-${safeOriginal}`
+      );
+
+    await writeFile(
+      inputPath,
+      Buffer.from(
+        await file.arrayBuffer()
+      )
+    );
+
+    const job =
+      await engine.extract(
+        inputPath,
+        file.name,
+        {
+          format,
+          bitrate:
+            body.bitrate
+              ? String(body.bitrate)
+              : undefined,
+          start:
+            body.start
+              ? String(body.start)
+              : undefined,
+          duration:
+            body.duration
+              ? String(body.duration)
+              : undefined
+        }
+      );
+
+    return c.json(
+      {
+        jobId: job.id,
+        status: job.status
+      },
+      202
+    );
+  }
+);
+
+app.get(
+  "/v1/jobs/:id",
+  c => {
+    const job =
+      engine.getJob(
+        c.req.param("id")
+      );
+
+    if (!job) {
+      return c.json(
+        {
+          error:
+            "job not found"
+        },
+        404
+      );
+    }
+
+    return c.json(job);
+  }
+);
+
+app.post(
+  "/v1/jobs/:id/cancel",
+  c => {
+    const job =
+      engine.getJob(
+        c.req.param("id")
+      );
+
+    if (!job) {
+      return c.json(
+        {
+          error:
+            "job not found"
+        },
+        404
+      );
+    }
+
+    engine.cancel(
+      job.id
+    );
+
+    return c.json({
+      ok: true,
+      status:
+        "cancelled"
+    });
+  }
+);
+
+app.get(
+  "/v1/jobs/:id/download",
+  async c => {
+    const job =
+      engine.getJob(
+        c.req.param("id")
+      );
+
+    if (
+      !job ||
+      job.status !==
+        "completed" ||
+      !job.outputPath ||
+      !job.outputName
+    ) {
+      return c.json(
+        {
+          error:
+            "output not ready"
+        },
+        404
+      );
+    }
+
+    const stream =
+      createReadStream(
+        job.outputPath
+      );
+
+    return new Response(
+      stream as any,
+      {
+        headers: {
+          "Content-Type":
+            "application/octet-stream",
+          "Content-Disposition":
+            `attachment; filename="${job.outputName}"`
+        }
+      }
+    );
+  }
+);
+
+serve({
+  fetch: app.fetch,
+  hostname: host,
+  port
+});
+
+console.log(
+  `DNYF Media API listening on http://${host}:${port}`
+);
